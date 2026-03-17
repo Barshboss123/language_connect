@@ -14,7 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'language_connect_secret_2024';
 const PORT = process.env.PORT || 3001;
 
 // ── Database setup ──────────────────────────────────────────────────────────
-const db = new Database(join(__dirname, 'data.db'));
+const db = new Database(process.env.DB_PATH || join(__dirname, 'data.db'));
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -299,6 +299,13 @@ io.on('connection', (socket) => {
     onlineUsers.delete(socket.id);
     io.emit('online_count', onlineUsers.size);
   });
+});
+
+// ── Serve built frontend in production ──────────────────────────────────────
+const clientDist = join(__dirname, '../client/dist');
+app.use(express.static(clientDist));
+app.get('*', (req, res) => {
+  res.sendFile(join(clientDist, 'index.html'));
 });
 
 httpServer.listen(PORT, () => {
