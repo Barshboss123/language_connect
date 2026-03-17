@@ -36,7 +36,7 @@ export default function VideoRoom() {
   const [status, setStatus] = useState('Waiting for partner...');
   const [sessionStart, setSessionStart] = useState(null);
   const [elapsed, setElapsed] = useState('0:00');
-  const [localSocketId, setLocalSocketId] = useState(null);
+  const partnerSocketRef = useRef(null); // must be a ref — used inside closures
 
   // Timer
   useEffect(() => {
@@ -77,10 +77,9 @@ export default function VideoRoom() {
     };
 
     pc.onicecandidate = e => {
-      if (e.candidate) {
+      if (e.candidate && partnerSocketRef.current) {
         socket.emit('ice_candidate', {
-          to: localSocketId || '_',
-          roomId,
+          to: partnerSocketRef.current,
           candidate: e.candidate
         });
       }
@@ -128,7 +127,7 @@ export default function VideoRoom() {
         if (!isMounted) return;
         setPartner(peerUser);
         setStatus('Partner joined! Setting up call...');
-        setLocalSocketId(socketId);
+        partnerSocketRef.current = socketId; // set synchronously before closure is created
 
         // We are the initiator — create offer
         const pc = createPeerConnection(stream);
@@ -140,7 +139,7 @@ export default function VideoRoom() {
       socket.on('offer', async ({ from, offer, user: peerUser }) => {
         if (!isMounted) return;
         setPartner(peerUser);
-        setLocalSocketId(from);
+        partnerSocketRef.current = from; // set synchronously before closure is created
         setStatus('Connecting...');
 
         const pc = createPeerConnection(stream);
