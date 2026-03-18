@@ -8,6 +8,7 @@ import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import Anthropic from '@anthropic-ai/sdk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || 'language_connect_secret_2024';
@@ -63,7 +64,56 @@ const AVATAR_COLORS = [
   '#DDA0DD','#98D8C8','#F7DC6F','#BB8FCE','#85C1E9'
 ];
 
+// ── Anthropic client ─────────────────────────────────────────────────────────
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
 // ── REST Routes ──────────────────────────────────────────────────────────────
+
+// Car model identification
+app.post('/api/identify-car', async (req, res) => {
+  const { imageUrl, imageBase64, mediaType } = req.body;
+
+  if (!imageUrl && !imageBase64) {
+    return res.status(400).json({ error: 'Provide either imageUrl or imageBase64' });
+  }
+
+  try {
+    const imageContent = imageUrl
+      ? { type: 'image', source: { type: 'url', url: imageUrl } }
+      : { type: 'image', source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: imageBase64 } };
+
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-6',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            imageContent,
+            {
+              type: 'text',
+              text: `Identify the car in this image. Provide:
+1. Make (manufacturer)
+2. Model
+3. Year or year range (if identifiable)
+4. Trim/variant (if identifiable)
+5. Key identifying features that led to this identification
+6. Confidence level (high/medium/low)
+
+If there are multiple cars, identify the most prominent one. If no car is visible, say so.`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const textBlock = response.content.find(b => b.type === 'text');
+    res.json({ identification: textBlock?.text ?? 'No result', usage: response.usage });
+  } catch (err) {
+    console.error('Car identification error:', err);
+    res.status(500).json({ error: err.message || 'Failed to identify car' });
+  }
+});
 
 // Register
 app.post('/api/register', async (req, res) => {
